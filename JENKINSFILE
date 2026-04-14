@@ -1,56 +1,72 @@
 pipeline {
     agent any
 
-     stages {
+    stages {
         stage('Get Code') {
             steps {
                 // Obtener código del repo
-                git 'https://github.com/anieto-unir/helloworld.git'
+                git 'https://github.com/Santos-Ros/helloworld.git'
             }
         }
 
-    stage('Build') {
-        steps {
-            echo 'Eyyyy, esto es Python. No hay que compilar nada!!!'
-	    echo WORKSPACE
-	    bat 'dir'
+        stage('Setup Python Env') {
+            steps {
+                sh '''
+                    source Python-test/bin/activate
+                '''
+            }
         }
-    }
 
-    stage('Tests')
-    {
-        parallel {
+        stage('Build') {
+            steps {
+                echo 'Eyyyy, esto es Python. No hay que compilar nada!!!'
+                echo "${WORKSPACE}"
+                sh 'ls -la'
+            }
+        }
 
-            stage('Unit') {
-                steps {
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                        bat '''
-                                set PYTHONPATH=%WORKSPACE%
-                                pytest --junitxml=result-unit.xml test\\unit
+        stage('Tests') {
+            parallel {
+
+                stage('Unit') {
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            sh '''
+                                source Python-test/bin/activate
+                                export PYTHONPATH=$WORKSPACE
+                                pytest --junitxml=result-unit.xml test/unit
+                            '''
+                        }
+                    }
+                }
+
+                stage('Rest') {
+                    steps {
+                        sh '''
+                            source Python-test/bin/activate
+
+                            export FLASK_APP=app/api.py
+                            export FLASK_ENV=development
+
+                            # Levantar servicios
+                            flask run &
+                            java -jar /home/jenkins/jenkins/wiremock.jar --port 9090 --root-dir test/wiremock &
+
+                            # Esperar a que arranquen
+                            sleep 30
+
+                            export PYTHONPATH=$WORKSPACE
+                            pytest --junitxml=result-rest.xml test/rest
                         '''
                     }
                 }
             }
-            
-            stage('Rest') {
-                steps {
-                    bat '''
-                        set FLASK_APP=app\\api.py
-                        set FLASK_ENV=development
-                        start flask run
-                        start java -jar C:\\Unir\\Ejercicios\\wiremock\\wiremock-jre8-standalone-2.28.0.jar --port 9090 --root-dir test\\wiremock
-                        set PYTHONPATH=%WORKSPACE%
-                        pytest --junitxml=result-rest.xml test\\rest
-                    '''
-                }    
-            }    
+        }
+
+        stage('Results') {
+            steps {
+                junit 'result*.xml'
+            }
         }
     }
-    
-    stage ('Results') {
-        steps {
-            junit 'result*.xml'
-        }
-    }
-  }
 }
