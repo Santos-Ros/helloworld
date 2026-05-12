@@ -12,7 +12,7 @@ pipeline {
             steps {
                 echo 'Clonando repositorio en agente-02'
                 sh 'whoami && hostname && echo $WORKSPACE'
-                git url: 'https://github.com/Santos-Ros//helloworld.git'
+                checkout scm
                 stash name: 'codigo', includes: '**/*'
             }
         }
