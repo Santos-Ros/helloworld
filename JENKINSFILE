@@ -155,7 +155,7 @@ pipeline {
                 unstash 'codigo'
 
                 sh '''
-                    export PATH=$PATH:/opt/jmeter/bin
+                    export PATH=/opt/jmeter/bin:$PATH
 
                     export FLASK_APP=app/api.py
                     export FLASK_ENV=development
@@ -176,7 +176,7 @@ pipeline {
                     echo "== Flask disponible, lanzando pruebas JMeter =="
                     rm -rf test/jmeter/reports
                     rm -f test/jmeter/results.jtl
-                    jmeter -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl
+                    /opt/jmeter/bin/jmeter  -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl
 
                     echo "== Pruebas de rendimiento finalizadas =="
                     pkill -f "flask run" || true
