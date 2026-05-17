@@ -84,24 +84,26 @@ pipeline {
             }
         }
 
-        stage('Coverage') {
-            agent { label 'agente-02' }
-            steps {
-                echo 'Publicando análisis de cobertura'
-                sh 'whoami && hostname && echo $WORKSPACE'
-                unstash 'coverage-results'
+                stage('Coverage') {
+                     agent { label 'agente-02' }
+                     steps {
+                         echo 'Publicando análisis de cobertura'
+                         sh 'whoami && hostname && echo $WORKSPACE'
+                         unstash 'coverage-results'
 
-                recordCoverage(
-                    tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
-                    qualityGates: [
-                        [threshold: 85.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'UNSTABLE'],
-                        [threshold: 95.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'FAILURE'],
-                        [threshold: 80.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'UNSTABLE'],
-                        [threshold: 90.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'FAILURE']
-                    ]
-                )
-            }
-        }
+                         catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
+                             recordCoverage(
+                                 tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
+                                 qualityGates: [
+                                     [threshold: 85.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'UNSTABLE'],
+                                     [threshold: 95.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'FAILURE'],
+                                     [threshold: 80.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'UNSTABLE'],
+                                     [threshold: 90.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'FAILURE']
+                                 ]
+                             )
+                         }
+                     }
+                 }
 
         stage('Static') {
             agent { label 'agente-02' }
