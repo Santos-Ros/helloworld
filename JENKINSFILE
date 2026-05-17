@@ -99,8 +99,13 @@ pipeline {
                     '''
                 }
 
-                archiveArtifacts artifacts: 'coverage.xml'
-
+                recordCoverage(
+                    tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
+                    qualityGates: [
+                        [threshold: 80.0, metric: 'LINE', baseline: 'PROJECT', unstable: true],
+                        [threshold: 90.0, metric: 'LINE', baseline: 'PROJECT', unstable: false]
+                    ]
+                )
             }
         }
 
