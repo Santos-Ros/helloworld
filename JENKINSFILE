@@ -136,7 +136,7 @@ pipeline {
                 unstash 'codigo'
 
                 sh '''
-                    bandit --exit-zero -r app -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                    bandit -r app -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}" || true
                 '''
 
                 recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')],
