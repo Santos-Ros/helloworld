@@ -20,7 +20,7 @@ pipeline {
         stage('Tests') {
             parallel {
                 stage('Unit Tests') {
-                    agent { label 'agente-03' }
+                    agent { label 'agente-02' }
                     steps {
                         echo 'Ejecutando tests unitarios'
                         sh 'whoami && hostname && echo $WORKSPACE'
@@ -40,9 +40,9 @@ pipeline {
                 }
 
                 stage('Integration Tests') {
-                    agent { label 'agente-03' }
+                    agent { label 'agente-02' }
                     steps {
-                        echo 'Ejecutando tests de integración en agente-03'
+                        echo 'Ejecutando tests de integración'
                         sh 'whoami && hostname && echo $WORKSPACE'
                         unstash 'codigo'
 
@@ -85,9 +85,9 @@ pipeline {
         }
 
         stage('Coverage') {
-            agent { label 'agente-03' }
+            agent { label 'agente-02' }
             steps {
-                echo 'Publicando análisis de cobertura en agente-03'
+                echo 'Publicando análisis de cobertura'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 unstash 'coverage-results'
 
@@ -106,7 +106,7 @@ pipeline {
         stage('Static') {
             agent { label 'agente-02' }
             steps {
-                echo 'Ejecutando análisis estático con Flake8 en el agente agente-02'
+                echo 'Ejecutando análisis estático con Flake8'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 unstash 'codigo'
 
@@ -122,9 +122,9 @@ pipeline {
         }
 
         stage('Security') {
-            agent { label 'agente-03' }
+            agent { label 'agente-02' }
             steps {
-                echo 'Ejecutando análisis con Bandit en el agente agente-02'
+                echo 'Ejecutando análisis con Bandit'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 unstash 'codigo'
 
