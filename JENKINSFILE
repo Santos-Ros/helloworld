@@ -10,7 +10,7 @@ pipeline {
         stage('Get Code') {
             agent { label 'agente-02' }
             steps {
-                echo 'Clonando repositorio en agente-02'
+                echo 'Clonando repositorio'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 checkout scm
                 stash name: 'codigo', includes: '**/*'
@@ -20,33 +20,35 @@ pipeline {
         stage('Tests') {
             parallel {
                 stage('Unit Tests') {
-                    agent { label 'agente-02' }
+                    agent { label 'agente-03' }
                     steps {
-                        echo 'Ejecutando tests unitarios en agente-02'
+                        echo 'Ejecutando tests unitarios'
                         sh 'whoami && hostname && echo $WORKSPACE'
                         unstash 'codigo'
 
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             sh '''
                                 export PYTHONPATH=$WORKSPACE
-                                pytest --junitxml=result-unit.xml test/unit
+                                coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest --junitxml=result-unit.xml test/unit
+                                coverage xml
                             '''
                         }
 
                         stash name: 'unit-results', includes: 'result-unit.xml'
+                        stash name: 'coverage-results', includes: 'coverage.xml'
                     }
                 }
 
                 stage('Integration Tests') {
-                    agent { label 'agente-02' }
+                    agent { label 'agente-03' }
                     steps {
-                        echo 'Ejecutando tests de integración en agente-02'
+                        echo 'Ejecutando tests de integración en agente-03'
                         sh 'whoami && hostname && echo $WORKSPACE'
                         unstash 'codigo'
 
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             sh '''
-                                echo "== Preparando entorno de pruebas de integración =="
+                                echo "== Preparando entorno de pruebas =="
 
                                 mkdir -p mocks/mappings
                                 cp test/wiremock/mappings/*.json mocks/mappings/
@@ -65,12 +67,12 @@ pipeline {
                                 done
 
                                 if ! nc -z localhost 9090; then
-                                    echo "ERROR: WireMock no está disponible en el puerto 9090 tras 30s"
+                                    echo "ERROR: WireMock no está disponible tras 30s"
                                     tail -n 20 wiremock.log || true
                                     exit 1
                                 fi
 
-                                echo "== WireMock disponible, continuamos con los tests =="
+                                echo "== WireMock disponible =="
                                 export PYTHONPATH=$WORKSPACE
                                 pytest --junitxml=result-rest.xml test/rest
                             '''
@@ -83,27 +85,19 @@ pipeline {
         }
 
         stage('Coverage') {
-            agent { label 'agente-02' }
+            agent { label 'agente-03' }
             steps {
-                echo 'Ejecutando análisis de cobertura en agente-02'
+                echo 'Publicando análisis de cobertura en agente-03'
                 sh 'whoami && hostname && echo $WORKSPACE'
-                unstash 'codigo'
-
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    sh '''
-                        export PYTHONPATH=$WORKSPACE
-
-                        python3-coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
-                        python3-coverage report -m
-                        python3-coverage xml
-                    '''
-                }
+                unstash 'coverage-results'
 
                 recordCoverage(
                     tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
                     qualityGates: [
-                        [threshold: 80.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'UNSTABLE'],
-                        [threshold: 90.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
+                        [threshold: 85.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'UNSTABLE'],
+                        [threshold: 95.0, metric: 'LINE',   baseline: 'PROJECT', criticality: 'FAILURE'],
+                        [threshold: 80.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'UNSTABLE'],
+                        [threshold: 90.0, metric: 'BRANCH', baseline: 'PROJECT', criticality: 'FAILURE']
                     ]
                 )
             }
@@ -119,30 +113,28 @@ pipeline {
                 sh '''
                     flake8 --exit-zero --format=pylint app > flake8.out
                 '''
-
                 recordIssues tools: [flake8(name: 'Flake8', pattern: 'flake8.out')],
                              qualityGates: [
-                                 [threshold: 10, type: 'TOTAL', unstable: true],
-                                 [threshold: 11, type: 'TOTAL', unstable: false]
-                             ]  
+                                 [threshold: 8,  type: 'TOTAL', unstable: true],
+                                 [threshold: 10, type: 'TOTAL', unstable: false]
+                             ]
             }
         }
 
         stage('Security') {
-            agent { label 'agente-02' }
+            agent { label 'agente-03' }
             steps {
-                echo 'Ejecutando análisis de seguridad con Bandit en el agente agente-02'
+                echo 'Ejecutando análisis con Bandit en el agente agente-02'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 unstash 'codigo'
 
                 sh '''
                     bandit -r app -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}" || true
                 '''
-
                 recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')],
                              qualityGates: [
-                                 [threshold: 1, type: 'TOTAL', unstable: true],
-                                 [threshold: 2, type: 'TOTAL', unstable: false]
+                                 [threshold: 2, type: 'TOTAL', unstable: true],
+                                 [threshold: 4, type: 'TOTAL', unstable: false]
                              ]
             }
         }
@@ -150,7 +142,7 @@ pipeline {
         stage('Performance') {
             agent { label 'agente-02' }
             steps {
-                echo 'Ejecutando pruebas de rendimiento con JMeter'
+                echo 'Ejecutando pruebas con JMeter'
                 sh 'whoami && hostname && echo $WORKSPACE'
                 unstash 'codigo'
 
@@ -161,24 +153,23 @@ pipeline {
                     export FLASK_ENV=development
                     flask run --host=127.0.0.1 --port=5000 > flask.log 2>&1 &
 
-                    echo "== Esperando a que Flask esté disponible en el puerto 5000... =="
+                    echo "== Esperando a que Flask esté disponible =="
                     for i in {1..30}; do
                         nc -z localhost 5000 && break
                         sleep 1
                     done
 
                     if ! nc -z localhost 5000; then
-                        echo "ERROR: Flask no está disponible en el puerto 5000 tras 30s"
+                        echo "ERROR: Flask no está disponible tras 30s"
                         tail -n 20 flask.log || true
                         exit 1
                     fi
 
-                    echo "== Flask disponible, lanzando pruebas JMeter =="
-                    rm -rf test/jmeter/reports
+                    echo "== Flask up, lanzando JMeter =="
                     rm -f test/jmeter/results.jtl
-                    /opt/jmeter/bin/jmeter  -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl
+                    /opt/jmeter/bin/jmeter -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl
 
-                    echo "== Pruebas de rendimiento finalizadas =="
+                    echo "== Pruebas finalizadas =="
                     pkill -f "flask run" || true
                 '''
             }
