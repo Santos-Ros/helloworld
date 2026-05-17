@@ -102,8 +102,8 @@ pipeline {
                 recordCoverage(
                     tools: [[parser: 'COBERTURA', pattern: 'coverage.xml']],
                     qualityGates: [
-                        [threshold: 80.0, metric: 'LINE', baseline: 'PROJECT', unstable: true],
-                        [threshold: 90.0, metric: 'LINE', baseline: 'PROJECT', unstable: false]
+                        [threshold: 80.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'UNSTABLE'],
+                        [threshold: 90.0, metric: 'LINE', baseline: 'PROJECT', criticality: 'FAILURE']
                     ]
                 )
             }
@@ -136,7 +136,7 @@ pipeline {
                 unstash 'codigo'
 
                 sh '''
-                    bandit -r app -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
+                    bandit --exit-zero -r app -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {msg}"
                 '''
 
                 recordIssues tools: [pyLint(name: 'Bandit', pattern: 'bandit.out')],
@@ -176,7 +176,7 @@ pipeline {
                     echo "== Flask disponible, lanzando pruebas JMeter =="
                     rm -rf test/jmeter/reports
                     rm -f test/jmeter/results.jtl
-                    jmeter -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl -o test/jmeter/reports
+                    jmeter -n -t test/jmeter/flask.jmx -l test/jmeter/results.jtl
 
                     echo "== Pruebas de rendimiento finalizadas =="
                     pkill -f "flask run" || true
